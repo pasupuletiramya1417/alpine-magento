@@ -1,0 +1,121 @@
+#!/bin/sh
+#nginx
+if [ "$VERBOSE" = "true" ]; then
+	mkdir -p /var/log/nginx
+	touch /var/log/nginx/error.log /var/log/nginx/access.log
+	tail -f /var/log/nginx/*.log &
+fi
+chown -R magento:magento /var/www
+nginx -g 'daemon off;' &
+#php
+if [[ "$VERBOSE" == "true" ]]; then
+	touch /var/log/php7/error.log
+	tail -f /var/log/php7/*.log &
+fi
+
+php-fpm7 -F &
+#rabbitmq
+#echo @testing http://nl.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories
+#apk add rabbitmq-server@testing
+#touch /usr/lib/rabbitmq/.erlang.cookie
+#echo shanmukhap-erlang-cookie > /usr/lib/rabbitmq/.erlang.cookie
+#chown rabbitmq:rabbitmq /usr/lib/rabbitmq/.erlang.cookie
+#chmod 700 /usr/lib/rabbitmq/.erlang.cookie
+#mkdir /etc/rabbitmq
+#touch /etc/rabbitmq/enabled_plugins
+#rabbitmq-server -detached
+#sleep 3
+#rabbitmqctl start_app
+#sleep 4
+#rabbitmqctl add_user magento magento
+#sleep 4
+#rabbitmqctl set_user_tags magento administrator
+#sleep 3
+#rabbitmqctl set_permissions -p / magento ".*" ".*" ".*"
+#sleep 4
+#rabbitmq-plugins enable --offline rabbitmq_management
+#sleep 4
+#rabbitmqctl stop
+#sleep 3
+#rabbitmq-server &
+wget https://plug-mirror.rcac.purdue.edu/alpine/edge/testing/x86/rabbitmq-server-3.8.17-r0.apk
+apk add --allow-untrusted rabbitmq-server-3.8.17-r0.apk
+mkdir /etc/rabbitmq
+touch /etc/rabbitmq/enabled_plugins
+rabbitmq-server -detached
+sleep 3
+rabbitmqctl start_app
+sleep 4
+rabbitmqctl add_user magento magento
+sleep 4
+rabbitmqctl set_user_tags magento administrator
+sleep 3
+rabbitmqctl set_permissions -p / magento ".*" ".*" ".*"
+sleep 4
+rabbitmq-plugins enable --offline rabbitmq_management
+sleep 4
+rabbitmqctl stop
+sleep 3
+rabbitmq-server &
+#elasticsearch
+su - elasticsearch -c /usr/share/elasticsearch/bin/elasticsearch &
+#redis
+redis-server --daemonize yes
+#varnish
+varnishd -f /etc/varnish/default.vcl &
+#mysql
+if [ ! -d "/run/mysqld" ]; then
+   mkdir -p /run/mysqld
+   chown -R mysql:mysql /run/mysqld
+fi
+   chown -R mysql:mysql /var/lib/mysql
+   echo 'Initializing database'
+   mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql > /dev/null
+   tfile=`mktemp`
+   if [ ! -f "$tfile" ]; then
+   return 1
+   fi
+# save sql
+   echo "[i] Create temp file: $tfile"
+   cat << EOF > $tfile
+USE mysql;
+FLUSH PRIVILEGES;
+DELETE FROM mysql.user;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'root' WITH GRANT OPTION;
+EOF
+   echo "[i] Creating database: magento"
+   echo "CREATE DATABASE IF NOT EXISTS magento CHARACTER SET utf8 COLLATE utf8_general_ci;" >> $tfile
+   echo "GRANT ALL ON magento.* to 'magento'@'%' IDENTIFIED BY 'magento';" >> $tfile
+   echo 'FLUSH PRIVILEGES;' >> $tfile
+   echo 'SET GLOBAL log_bin_trust_function_creators = 1;' >> $tfile
+   echo "[i] run tempfile: $tfile"
+   /usr/bin/mysqld --user=mysql --bootstrap --verbose=0 < $tfile
+   rm -f $tfile
+echo "[i] Sleeping 5 sec"
+sleep 5
+echo "Starting all process"
+exec /usr/bin/mysqld --user=mysql --console --log-bin-trust-function-creators=1 &
+#MAGENTO_SSH  
+composer create-project --repository-url=https://repo.magento.com/ magento/project-community-edition /var/www/html/magento
+#sleep 20
+mv /di.xml /var/www/html/magento/app/etc/
+cd /var/www/html/magento
+php bin/magento setup:install --base-url=http://alpinehack.com --db-host=localhost --db-name=magento --db-user=magento --db-password=magento --admin-firstname=admin --admin-lastname=admin --admin-email=praneethpathange@gmail.com --admin-user=shannu --admin-password=kspl@1234 --language=en_US --currency=GBP --timezone=Europe/London --use-rewrites=1
+
+php bin/magento se:up
+php bin/magento c:c 
+php bin/magento c:f 
+php bin/magento setup:di:compile
+php bin/magento setup:static-content:deploy -f
+php bin/magento c:c 
+php bin/magento c:f 
+ln -s /usr/share/phpmyadmin/ /var/www/html/
+chown -R magento:magento /etc/phpmyadmin 
+chown -R magento:magento /var/www/html 
+find var generated vendor pub/static pub/media app/etc -type f -exec chmod g+w {} + && find var generated vendor pub/static pub/media app/etc -type d -exec chmod g+ws {} + && chown -R :www-data . && chmod u+x bin/magento
+chmod -R 777 var generated 
+rm -rf /ioncube
+rm -rf /tmp/* /var/cache/apk/*
+apk del apache2
+rm -rf /etc/apache2
+/usr/sbin/sshd -D -e -f /etc/ssh/sshd_config

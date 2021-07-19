@@ -1,0 +1,96 @@
+FROM alpine
+
+RUN apk --update add --no-cache --virtual .build-deps \
+ bash \
+  sudo \
+   vim \
+    shadow \
+    php7 \
+    php7-bcmath \
+    php7-cli \
+    php7-dom \
+    php7-fpm \
+    php7-iconv \
+    php7-intl \
+    php7-mcrypt \
+    php7-pdo \
+    php7-pdo_mysql \
+    php7-pdo_sqlite \
+    php7-pdo_pgsql \
+    php7-phar \
+    php7-session \
+    php7-simplexml \
+    php7-soap \
+    php7-tokenizer \
+    php7-xml \
+    php7-xmlwriter \
+    php7-posix \
+    php7-xsl \
+    php7-zip \
+    php7-zlib \
+    php7-sockets \
+    php-sodium \
+     curl \
+      su-exec \
+       util-linux \
+        git \
+         gnupg \
+           tar \
+            unzip \
+             wget \
+              bind-tools \
+               mysql \
+               mysql-client \
+               mariadb-server-utils &&\
+
+addgroup mysql mysql &&\
+wget http://mirror.ette.biz/alpine/latest-stable/main/x86_64/nginx-1.20.1-r3.apk http://mirror.ette.biz/alpine/latest-stable/main/x86_64/redis-6.2.4-r0.apk https://dl-4.alpinelinux.org/alpine/edge/main/x86_64/varnish-6.6.0-r0.apk https://dl-cdn.alpinelinux.org/alpine/edge/community/x86/phpmyadmin-5.1.1-r0.apk http://alpine.ccns.ncku.edu.tw/alpine/v3.14/community/x86_64/openjdk11-11.0.11_p9-r0.apk https://mirror.nju.edu.cn/alpine/latest-stable/main/x86_64/openssh-8.6_p1-r2.apk https://plug-mirror.rcac.purdue.edu/alpine/edge/testing/x86/rabbitmq-server-3.8.17-r0.apk https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.8.0-linux-x86_64.tar.gz &&\
+
+apk add --allow-untrusted /nginx-1.20.1-r3.apk /phpmyadmin-5.1.1-r0.apk /redis-6.2.4-r0.apk /varnish-6.6.0-r0.apk /openjdk11-11.0.11_p9-r0.apk /openssh-8.6_p1-r2.apk rabbitmq-server-3.8.17-r0.apk &&\
+
+#NGINX
+mkdir /etc/nginx/sites-available /etc/nginx/sites-enabled/ &&\
+ln -s /etc/nginx/sites-available/default.conf /etc/nginx/sites-enabled/default.conf &&\
+
+#COMPOSER IONCUBE
+php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" HASH="$(wget -q -O - https://composer.github.io/installer.sig)" php -r "if (hash_file('SHA384', 'composer-setup.php') === '$HASH') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" &&\
+php composer-setup.php --install-dir=/usr/local/bin --filename=composer &&\
+wget http://www.voipmonitor.org/ioncube/x86_64/ioncube_loader_lin_7.4.so &&\
+mv ioncube_loader_lin_7.4.so /var/www/ &&\
+
+#SSH
+adduser magento -D -g 1000 &&\
+echo  "magento ALL=(ALL) ALL" >> /etc/sudoers &&\
+echo "magento:magento" |chpasswd &&\
+ssh-keygen -A &&\
+
+#RABBIT
+mkdir /etc/rabbitmq &&\
+touch /etc/rabbitmq/enabled_plugins &&\
+echo "[{rabbit, [{loopback_users, []}]}]." >> /etc/rabbitmq/rabbitmq.config &&\
+#ELASTIC
+tar -xvf elasticsearch-7.8.0-linux-x86_64.tar.gz &&\
+mv /elasticsearch-7.8.0 /elasticsearch &&\
+mv /elasticsearch /usr/share/ &&\
+adduser -D elasticsearch -g 1000 -h /usr/share/elasticsearch &&\
+mkdir -p /usr/share/elasticsearch/data /usr/share/elasticsearch/tmp /usr/share/elasticsearch/config/scripts &&\
+rm -rf /ioncube.tar.gz /elasticsearch-7.8.0-linux-x86_64.tar.gz /nginx-1.20.1-r3.apk /redis-6.2.4-r0.apk /varnish-6.6.0-r0.apk /phpmyadmin-5.1.1-r0.apk /openjdk11-11.0.11_p9-r0.apk /openssh-8.6_p1-r2.apk /usr/share/elasticsearch/modules/x-pack-ml/platform/linux-x86_64 &&\
+export ES_JAVA_HOME=/usr/lib/jvm/java-11-openjdk &&\
+export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/usr/share/elasticsearch/tmp" &&\
+chown -R elasticsearch:elasticsearch /usr/share/elasticsearch /usr/lib/jvm &&\
+echo "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk" >> /etc/profile
+
+COPY sshd_config /etc/ssh/
+COPY php.ini /etc/php7/
+COPY di.xml /
+COPY startup.sh /
+COPY default.conf /etc/nginx/sites-available/
+COPY nginx.conf /etc/nginx/
+COPY www.conf /etc/php7/php-fpm.d/
+COPY auth.json /root/.composer/
+COPY elasticsearch.yml /usr/share/elasticsearch/config/
+COPY default.vcl /etc/varnish/
+COPY varnish /etc/default/
+COPY phpinfo.php /var/www/html/
+ENTRYPOINT ["/startup.sh"]
+EXPOSE 5672 15672 4369 9200 80 443 6379 8888 6082 3306 9000 22

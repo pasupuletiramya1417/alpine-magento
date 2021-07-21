@@ -4,7 +4,7 @@ pipeline {
        		 stage('deploy') {
 			 steps {
                       		sh 'docker build --no-cache -t jento .'
-				sh 'sudo docker run --name jento jento'
+				sh 'docker run --name jento jento'
                		 }
            	 }
     	  }	

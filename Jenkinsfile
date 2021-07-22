@@ -1,11 +1,15 @@
 pipeline {
-      agent any
-	      stages {
-       		 stage('deploy') {
+     agent any
+	     stages {
+			stage('build') {
+				steps {
+                     sh 'docker build --no-cache -t jento .'
+			               		 }
+							}
+			 stage('deploy') {
 			 steps {
-                      		sh 'docker build --no-cache -t jento .'
-				sh 'docker run --name jento jento'
-               		 }
-           	 }
-    	  }	
+      				sh 'docker run --name jento jento'
+			}	
+		}
+	}
 }

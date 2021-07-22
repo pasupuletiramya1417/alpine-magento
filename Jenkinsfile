@@ -3,7 +3,7 @@ pipeline {
 	     stages {
 			stage('build') {
 				steps {
-                     sh 'sudo docker build --no-cache -t jento .'
+                     sh 'docker build --no-cache -t jento .'
 			               		 }
 							}
 			 stage('deploy') {

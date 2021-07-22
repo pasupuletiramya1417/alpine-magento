@@ -8,7 +8,7 @@ pipeline {
 							}
 			 stage('deploy') {
 			 steps {
-      				sh 'docker run --name jento jento'
+      				sh 'sudo docker run --name jento jento'
 			}	
 		}
 	}

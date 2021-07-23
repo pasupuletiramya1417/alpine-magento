@@ -1,15 +1,22 @@
 pipeline {
-     agent any
+     agent {
+	 label 'magento1'
+	 }
 	     stages {
 			stage('build') {
 				steps {
                      sh 'docker build --no-cache -t jento .'
 			               		 }
 							}
+     agent {
+	 label 'magento2'
+	 }
+	     stages {
 			 stage('deploy') {
 			 steps {
-      				sh 'sudo docker run --name jento jento'
-			}	
+      				sh 'docker run --name jento jento'
+				}	
+			}
 		}
 	}
 }

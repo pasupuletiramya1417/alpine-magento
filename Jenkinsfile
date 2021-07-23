@@ -8,9 +8,6 @@ pipeline {
                      sh 'docker build --no-cache -t jento .'
 			               		 }
 							}
-     agent {
-	 label 'magento2'
-	 }
 	     stages {
 			 stage('deploy') {
 			 steps {

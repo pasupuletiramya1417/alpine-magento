@@ -1,6 +1,6 @@
 pipeline {
      agent {
-	 label 'magento1'
+	 label 'container1'
 	 }
 	     stages {
 			stage('build') {
